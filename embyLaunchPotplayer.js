@@ -27,12 +27,13 @@
         let buttonhtml = `<div id="ExternalPlayersBtns" class ="detailButtons flex align-items-flex-start flex-wrap-wrap">
             <button id="embyPot" type="button" class="detailButton  emby-button emby-button-backdropfilter raised-backdropfilter detailButton-primary" title="Potplayer"> <div class="detailButton-content"> <i class="md-icon detailButton-icon button-icon button-icon-left icon-PotPlayer">　</i>  <span class="button-text">Pot</span> </div> </button>
             </div>`
-        mainDetailButtons.insertAdjacentHTML('afterend', buttonhtml)
+        //这里相比原作者改成afterbegin
+        mainDetailButtons.insertAdjacentHTML('afterbegin', buttonhtml)
         document.querySelector("div[is='emby-scroller']:not(.hide) #embyPot").onclick = embyPot;
 
         //add icons
         document.querySelector("div[is='emby-scroller']:not(.hide) .icon-PotPlayer").style.cssText += 'background: url(https://fastly.jsdelivr.net/gh/bpking1/embyExternalUrl@0.0.5/embyWebAddExternalUrl/icons/icon-PotPlayer.webp)no-repeat;background-size: 100% 100%;font-size: 1.4em';
-    }
+       }
 
     function showFlag() {
         let mainDetailButtons = document.querySelector("div[is='emby-scroller']:not(.hide) .mainDetailButtons");
@@ -161,30 +162,13 @@
     async function embyPot() {
         let mediaInfo = await getEmbyMediaInfo();
         let intent = mediaInfo.intent;
-        let poturl = `potplayer://${encodeURI(mediaInfo.streamUrl)} /sub=${encodeURI(mediaInfo.subUrl)} /current /title="${intent.title}" /seek=${getSeek(intent.position)}`;
+        //添加userid参数，方便potplayer插件使用
+        let userId = ApiClient._serverInfo.UserId;
+        //后面sub title参数不要了
+        let poturl = `potplayer://${encodeURI(mediaInfo.streamUrl)}`;
         console.log(poturl);
-        window.open(poturl, "_blank");
-    }
-
-    async function embyCopyUrl() {
-        let mediaInfo = await getEmbyMediaInfo();
-        let textarea = document.createElement('textarea');
-        document.body.appendChild(textarea);
-        textarea.style.position = 'absolute';
-        textarea.style.clip = 'rect(0 0 0 0)';
-        textarea.value = mediaInfo.streamUrl;
-        textarea.select();
-        if (document.execCommand('copy', true)) {
-            console.log(`copyUrl = ${mediaInfo.streamUrl}`);
-            this.innerText = '复制成功';
-        }
-        //need https
-        // if (navigator.clipboard) {
-        //     navigator.clipboard.writeText(mediaInfo.streamUrl).then(() => {
-        //          console.log(`copyUrl = ${mediaInfo.streamUrl}`);
-        //          this.innerText = '复制成功';
-        //     })
-        // }
+        //添加userid参数，方便potplayer插件使用
+        window.open(poturl + "/userid=" + userId, "_blank");
     }
 
     function getOS() {
