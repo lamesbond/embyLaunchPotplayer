@@ -22,7 +22,8 @@ string GetDesc() {
 string HOST;
 string ITEMID;
 string APIKEY;
-string USERID;
+//需事先填入emby用户ID
+string USERID = "350f66890abd42ce8e7073b7e1f01655";
 string ITEMTYPE = "movie";
 
 
@@ -41,6 +42,7 @@ string VideoUrl(const string &in path, dictionary &MetaData, array<dictionary> &
 //获取item详情
     string url = HOST + "/emby/Users/" + USERID + "/Items/" + currentItemId + "?api_key=" + APIKEY;
     string res = post(url);
+
     if (!res.empty()) {
 		JsonReader Reader;
 		JsonValue Root;
@@ -49,6 +51,7 @@ string VideoUrl(const string &in path, dictionary &MetaData, array<dictionary> &
 			
 			if (ITEMTYPE == "movie") {
 				HostPrintUTF8("修改电影标题：" + Root["FileName"].asString());
+				string streamUrl = HostRegExpParse(path, "([^&]+)/userid=");
                 MetaData["title"] = Root["FileName"].asString();
 			    MetaData["SourceUrl"] = path;
 			}
@@ -172,15 +175,6 @@ bool PlayitemCheck(const string &in path) {
 
 	return false;
 }
-string PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList) {
-	HostPrintUTF8("playitemparse开始");
-	if (path.find("/videos") >= 0) {
-        return VideoUrl(path, MetaData, QualityList);
-	}
-
-	return path;
-}
-
 
 bool PlaylistCheck(const string &in path) {
 	if (path.find("emby") < 0) {
@@ -206,6 +200,16 @@ bool PlaylistCheck(const string &in path) {
 
 	return false;
 }
+
+string PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList) {
+	HostPrintUTF8("playitemparse开始");
+	if (path.find("/videos") >= 0) {
+        return VideoUrl(path, MetaData, QualityList);
+	}
+
+	return path;
+}
+
 array<dictionary> PlaylistParse(const string &in path) {
 	HostPrintUTF8("playlistparse开始");
 	return VideosUrl(path);
