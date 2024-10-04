@@ -162,13 +162,10 @@
     async function embyPot() {
         let mediaInfo = await getEmbyMediaInfo();
         let intent = mediaInfo.intent;
-        //添加userid参数，方便potplayer插件使用
-        let userId = ApiClient._serverInfo.UserId;
-        //后面sub title参数不要了
+
         let poturl = `potplayer://${encodeURI(mediaInfo.streamUrl)}`;
         console.log(poturl);
-        //添加userid参数，方便potplayer插件使用
-        window.open(poturl + "/userid=" + userId, "_blank");
+        window.open(poturl, "_blank");
     }
 
     function getOS() {
