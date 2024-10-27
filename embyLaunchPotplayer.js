@@ -48,142 +48,15 @@
         return !(audioElement && audioElement.classList.contains("hide"));
     }
 
-    async function getItemInfo() {
-        let userId = ApiClient._serverInfo.UserId;
-        let itemId = /\?id=(\d*)/.exec(window.location.hash)[1];
-        let response = await ApiClient.getItem(userId, itemId);
-        //继续播放当前剧集的下一集
-        if (response.Type == "Series") {
-            let seriesNextUpItems = await ApiClient.getNextUpEpisodes({ SeriesId: itemId, UserId: userId });
-            console.log("nextUpItemId: " + seriesNextUpItems.Items[0].Id);
-            return await ApiClient.getItem(userId, seriesNextUpItems.Items[0].Id);
-        }
-        //播放当前季season的第一集
-        if (response.Type == "Season") {
-            let seasonItems = await ApiClient.getItems(userId, { parentId: itemId });
-            console.log("seasonItemId: " + seasonItems.Items[0].Id);
-            return await ApiClient.getItem(userId, seasonItems.Items[0].Id);
-        }
-        //播放当前集或电影
-        console.log("itemId:  " + itemId);
-        return response;
-    }
-
-    function getSeek(position) {
-        let ticks = position * 10000;
-        let parts = []
-            , hours = ticks / 36e9;
-        (hours = Math.floor(hours)) && parts.push(hours);
-        let minutes = (ticks -= 36e9 * hours) / 6e8;
-        ticks -= 6e8 * (minutes = Math.floor(minutes)),
-            minutes < 10 && hours && (minutes = "0" + minutes),
-            parts.push(minutes);
-        let seconds = ticks / 1e7;
-        return (seconds = Math.floor(seconds)) < 10 && (seconds = "0" + seconds),
-            parts.push(seconds),
-            parts.join(":")
-    }
-
-    function getSubPath(mediaSource) {
-        let selectSubtitles = document.querySelector("div[is='emby-scroller']:not(.hide) select.selectSubtitles");
-        let subTitlePath = '';
-        //返回选中的外挂字幕
-        if (selectSubtitles && selectSubtitles.value > 0) {
-            let SubIndex = mediaSource.MediaStreams.findIndex(m => m.Index == selectSubtitles.value && m.IsExternal);
-            if (SubIndex > -1) {
-                let subtitleCodec = mediaSource.MediaStreams[SubIndex].Codec;
-                subTitlePath = `/${mediaSource.Id}/Subtitles/${selectSubtitles.value}/Stream.${subtitleCodec}`;
-            }
-        }
-        else {
-            //默认尝试返回第一个外挂中文字幕
-            let chiSubIndex = mediaSource.MediaStreams.findIndex(m => m.Language == "chi" && m.IsExternal);
-            if (chiSubIndex > -1) {
-                let subtitleCodec = mediaSource.MediaStreams[chiSubIndex].Codec;
-                subTitlePath = `/${mediaSource.Id}/Subtitles/${chiSubIndex}/Stream.${subtitleCodec}`;
-            } else {
-                //尝试返回第一个外挂字幕
-                let externalSubIndex = mediaSource.MediaStreams.findIndex(m => m.IsExternal);
-                if (externalSubIndex > -1) {
-                    let subtitleCodec = mediaSource.MediaStreams[externalSubIndex].Codec;
-                    subTitlePath = `/${mediaSource.Id}/Subtitles/${externalSubIndex}/Stream.${subtitleCodec}`;
-                }
-            }
-
-        }
-        return subTitlePath;
-    }
-
-
-    async function getEmbyMediaInfo() {
-        let itemInfo = await getItemInfo();
-        let mediaSourceId = itemInfo.MediaSources[0].Id;
-        let selectSource = document.querySelector("div[is='emby-scroller']:not(.hide) select.selectSource");
-        if (selectSource && selectSource.value.length > 0) {
-            mediaSourceId = selectSource.value;
-        }
-        //let selectAudio = document.querySelector("div[is='emby-scroller']:not(.hide) select.selectAudio");
-        let mediaSource = itemInfo.MediaSources.find(m => m.Id == mediaSourceId);
-        let domain = `${ApiClient._serverAddress}/emby/videos/${itemInfo.Id}`;
-        let subPath = getSubPath(mediaSource);
-        let subUrl = subPath.length > 0 ? `${domain}${subPath}?api_key=${ApiClient.accessToken()}` : '';
-        let streamUrl = `${domain}/stream.${mediaSource.Container}?api_key=${ApiClient.accessToken()}&Static=true&MediaSourceId=${mediaSourceId}`;
-        let position = parseInt(itemInfo.UserData.PlaybackPositionTicks / 10000);
-        let intent = await getIntent(mediaSource, position);
-        console.log(streamUrl, subUrl, intent);
-        return {
-            streamUrl: streamUrl,
-            subUrl: subUrl,
-            intent: intent,
-        }
-    }
-
-    async function getIntent(mediaSource, position) {
-        let title = mediaSource.Path.split('/').pop();
-        let externalSubs = mediaSource.MediaStreams.filter(m => m.IsExternal == true);
-        let subs = ''; //要求是android.net.uri[] ?
-        let subs_name = '';
-        let subs_filename = '';
-        let subs_enable = '';
-        if (externalSubs) {
-            subs_name = externalSubs.map(s => s.DisplayTitle);
-            subs_filename = externalSubs.map(s => s.Path.split('/').pop());
-        }
-        return {
-            title: title,
-            position: position,
-            subs: subs,
-            subs_name: subs_name,
-            subs_filename: subs_filename,
-            subs_enable: subs_enable
-        };
-    }
-
     async function embyPot() {
-        let mediaInfo = await getEmbyMediaInfo();
-        let intent = mediaInfo.intent;
-
-        let poturl = `potplayer://${encodeURI(mediaInfo.streamUrl)}`;
+        let url = window.location.href;
+        let userid = ApiClient._serverInfo.UserId;
+        let apikey = ApiClient.accessToken();
+        let poturl = "potplayer://" + url + "&userid=" + userid + "&apikey=" + apikey;
         console.log(poturl);
-        window.open(poturl, "_blank");
+        window.open(poturl, "_self");
     }
 
-    function getOS() {
-        let u = navigator.userAgent
-        if (!!u.match(/compatible/i) || u.match(/Windows/i)) {
-            return 'windows'
-        } else if (!!u.match(/Macintosh/i) || u.match(/MacIntel/i)) {
-            return 'macOS'
-        } else if (!!u.match(/iphone/i) || u.match(/Ipad/i)) {
-            return 'ios'
-        } else if (u.match(/android/i)) {
-            return 'android'
-        } else if (u.match(/Ubuntu/i)) {
-            return 'Ubuntu'
-        } else {
-            return 'other'
-        }
-    }
 
     // monitor dom changements
     document.addEventListener("viewbeforeshow", function (e) {
