@@ -1,31 +1,29 @@
 // noinspection LossyEncoding
 
-bool debug = false;
+bool debug = true;
 void OnInitialize() {
 	if (debug) {
 		HostOpenConsole();
 	}
 
 }
-
+//http://eq59.local:8096/emby/videos/8525/stream.mkv?api_key=81f31d203a7142f382e209236649f9fc&Static=true&MediaSourceId=80c7496f17ea4a0285d9e361668c5903
 string GetTitle() {
 	return "Emby";
 }
 string GetVersion() {
-	return "1.2";
+	return "1.3";
 }
 
 string GetDesc() {
-	return "localhost:8096";
+	return "eq59.local:8096";
 }
 
 string HOST;
 string ITEMID;
+string USERID;
 string APIKEY;
-//需事先填入emby用户ID
-string USERID = "350f66890abd42ce8e7073b7e1f01655";
-string ITEMTYPE = "movie";
-
+// string ITEMTYPE = "movie";
 
 string post(string url, string data="") {
 	string UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
@@ -34,54 +32,55 @@ string post(string url, string data="") {
 
 	return HostUrlGetStringWithAPI(url, UserAgent, Headers, data, true);
 }
-string VideoUrl(const string &in path, dictionary &MetaData, array<dictionary> &QualityList) {
-    array<dictionary> subtitle;
-    dictionary dic;
-	string currentItemId = HostRegExpParse(path, "videos/([0-9]+)/");
 
-//获取item详情
-    string url = HOST + "/emby/Users/" + USERID + "/Items/" + currentItemId + "?api_key=" + APIKEY;
-    string res = post(url);
+string Video(const string &in path, dictionary &MetaData, array<dictionary> &QualityList) {
+	HostPrintUTF8("Video开始: " + path);
+	string streamUrl;
+    // array<dictionary> subtitle;
+    // dictionary dic;
+
+    //获取item详情
+    string apiurl = HOST + "/emby/Users/" + USERID + "/Items/" + ITEMID + "?api_key=" + APIKEY;
+    string res = post(apiurl);
 
     if (!res.empty()) {
 		JsonReader Reader;
 		JsonValue Root;
-		if (Reader.parse(res, Root) && Root.isObject()) {
-			JsonValue mediaSource = Root["MediaSources"][0];
-			
-			if (ITEMTYPE == "movie") {
-				HostPrintUTF8("修改电影标题：" + Root["FileName"].asString());
-				string streamUrl = HostRegExpParse(path, "([^&]+)/userid=");
-                MetaData["title"] = Root["FileName"].asString();
-			    MetaData["SourceUrl"] = path;
-			}
-			
-			for (int i = 0; i < mediaSource["MediaStreams"].size(); i++) {
-            	JsonValue mediaStream = mediaSource["MediaStreams"][i];
-            	if (mediaStream.isObject()) {
-            	    if (mediaStream["Type"].asString() == "Subtitle" && mediaStream["IsExternal"].asString() == "true") {
-            	        dic["name"] = mediaStream["DisplayTitle"].asString() + " 外挂";
-            	        dic["url"] = HOST + "/emby/videos/" + currentItemId + "/" + mediaSource["Id"].asString() + "/Subtitles/" + mediaStream["Index"].asString() + "/Stream." + mediaStream["codec"].asString() + "?api_key=" + APIKEY;
-            	    }
-            	}
-            	subtitle.insertLast(dic);
-            }
 
-            MetaData["subtitle"] = subtitle;
+		if (Reader.parse(res, Root) && Root.isObject()) {
+			// JsonValue mediaSource = Root["MediaSources"][0];
+			
+			if (Root["Type"].asString() == "Movie") {
+				HostPrintUTF8("修改电影标题：" + Root["FileName"].asString());
+				streamUrl = HOST + "/emby/videos/" + ITEMID + "/stream." + Root["MediaSources"][0]["Container"].asString() + "?api_key=" + APIKEY + "&Static=true&MediaSourceId=" + Root["MediaSources"][0]["Id"].asString();
+                MetaData["title"] = Root["FileName"].asString();
+			    MetaData["SourceUrl"] = streamUrl;
+				MetaData["url"] = streamUrl;
+			// for (int i = 0; i < mediaSource["MediaStreams"].size(); i++) {
+            // 	JsonValue mediaStream = mediaSource["MediaStreams"][i];
+            // 	if (mediaStream.isObject()) {
+            // 	    if (mediaStream["Type"].asString() == "Subtitle" && mediaStream["IsExternal"].asString() == "true") {
+            // 	        dic["name"] = mediaStream["DisplayTitle"].asString() + " 外挂";
+            // 	        dic["url"] = HOST + "/emby/videos/" + ITEMID + "/" + mediaSource["Id"].asString() + "/Subtitles/" + mediaStream["Index"].asString() + "/Stream." + mediaStream["codec"].asString() + "?api_key=" + APIKEY;
+            // 	    }
+            }
+            // 	subtitle.insertLast(dic);
+            // MetaData["subtitle"] = subtitle;
 		}
 	}
-	return path;
+	return streamUrl;
 }
+
 array<dictionary> VideosUrl(const string &in path) {
     string seriesid;
 	string seasonid;
-    string url;
+    string apiurl;
     string res;
     array<dictionary> episodes;
 
 //获取item详情，取seriesid和seasonid，绝命毒师整个系列为一个seriesid，5季对应5个seasonid
-    url = HOST + "/emby/Users/" + USERID + "/Items/" + ITEMID + "?api_key=" + APIKEY;
-    res = post(url);
+    apiurl = HOST + "/emby/Users/" + USERID + "/Items/" + ITEMID + "?api_key=" + APIKEY;
+    res = post(apiurl);
     if (!res.empty()) {
 		JsonReader Reader;
 		JsonValue Root;
@@ -90,8 +89,8 @@ array<dictionary> VideosUrl(const string &in path) {
 			// 判断是不是要插入正剧前后播放的特典，OVA之类，如果是，将按季1，季2的顺序添加，而不是按Special季的顺序
 			if (!Root["SortParentIndexNumber"].isNull()) {
 				int sortParentIndexNumber = Root["SortParentIndexNumber"].asInt();
-                url = HOST + "/emby/Shows/" + seriesid + "/Seasons?api_key=" + APIKEY;
-				res = post(url);
+                apiurl = HOST + "/emby/Shows/" + seriesid + "/Seasons?api_key=" + APIKEY;
+				res = post(apiurl);
 				if (!res.empty()) {
 					if (Reader.parse(res, Root) && Root.isObject()) {
                         for (int i = 0; i < Root["Items"].size(); i++) {
@@ -109,8 +108,8 @@ array<dictionary> VideosUrl(const string &in path) {
 	}
 	HostPrintUTF8("获取到的seriesid：" + seriesid + "seasonid：" + seasonid);
 //获取seasonid下所有的episode
-    url = HOST + "/emby/Shows/" + seriesid + "/Episodes?SeasonId=" + seasonid + "&api_key=" + APIKEY;
-    res = post(url);
+    apiurl = HOST + "/emby/Shows/" + seriesid + "/Episodes?SeasonId=" + seasonid + "&api_key=" + APIKEY;
+    res = post(apiurl);
     if (!res.empty()) {
 		JsonReader Reader;
 		JsonValue Root;
@@ -130,8 +129,8 @@ array<dictionary> VideosUrl(const string &in path) {
 					JsonValue eitem = eitems[i];
 					if (eitem.isObject()) {
 					 	dictionary episode;
-                        url = HOST + "/emby/Users/" + USERID + "/Items/" + eitem["Id"].asString() + "?api_key=" + APIKEY;
-                        string childres = post(url);
+                        apiurl = HOST + "/emby/Users/" + USERID + "/Items/" + eitem["Id"].asString() + "?api_key=" + APIKEY;
+                        string childres = post(apiurl);
                         if (!childres.empty()) {
                         	JsonReader ChildReader;
                          	JsonValue ChildRoot;
@@ -152,24 +151,28 @@ array<dictionary> VideosUrl(const string &in path) {
 }
 
 bool PlayitemCheck(const string &in path) {
+	HostPrintUTF8("playitemcheck开始: " + path);
+	if (path.find("stream") >= 0) {
+        return false;
+	}
 	if (HOST.empty()) {
-        HOST = HostRegExpParse(path, "([^&]+)/emby/");
+        HOST ="http://" + HostRegExpParse(path, "//([^&]+)/web/");
 		HostPrintUTF8("重要参数HOST获取：" + HOST);
 	}
 	if (ITEMID.empty()) {
-        ITEMID = HostRegExpParse(path, "videos/([0-9]+)/");
+        ITEMID = HostRegExpParse(path, "id=([0-9]+)&");
 		HostPrintUTF8("重要参数ITEMID获取：" + ITEMID);
 	}
-	if (APIKEY.empty()) {
-        APIKEY = HostRegExpParse(path, "api_key=([a-zA-Z0-9]+)&Static");
-		HostPrintUTF8("重要参数APIKEY获取：" + APIKEY);
-	}
 	if (USERID.empty()) {
-        USERID = HostRegExpParse(path, "userid=([a-zA-Z0-9]+)");
+        USERID = HostRegExpParse(path, "userid=([a-zA-Z0-9]+)&");
 		HostPrintUTF8("重要参数USERID获取：" + USERID);
 	}
-    HostPrintUTF8("playitemcheck开始");
-    if (path.find("emby") >= 0) {
+	if (APIKEY.empty()) {
+        APIKEY = HostRegExpParse(path, "apikey=([a-zA-Z0-9]+)");
+		HostPrintUTF8("重要参数APIKEY获取：" + APIKEY);
+	}
+	
+	if (path.find("8096") >= 0) {
 		return true;
 	}
 
@@ -177,14 +180,11 @@ bool PlayitemCheck(const string &in path) {
 }
 
 bool PlaylistCheck(const string &in path) {
-	if (path.find("emby") < 0) {
-		return false;
-	}
 	HostPrintUTF8("playlistcheck开始");
 
 //获取item详情
-    string url = HOST + "/emby/Users/" + USERID + "/Items/" + ITEMID + "?api_key=" + APIKEY;
-    string res = post(url);
+    string apiurl = HOST + "/emby/Users/" + USERID + "/Items/" + ITEMID + "?api_key=" + APIKEY;
+    string res = post(apiurl);
 
     if (!res.empty()) {
 		JsonReader Reader;
@@ -192,7 +192,7 @@ bool PlaylistCheck(const string &in path) {
 		if (Reader.parse(res, Root) && Root.isObject()) {
             if (Root["Type"].asString() == "Episode") {
 				HostPrintUTF8("playlistcheck为episode");
-				ITEMTYPE = "episode";
+				// ITEMTYPE = "episode";
                 return true;
             }
 		}
@@ -202,9 +202,9 @@ bool PlaylistCheck(const string &in path) {
 }
 
 string PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList) {
-	HostPrintUTF8("playitemparse开始");
-	if (path.find("/videos") >= 0) {
-        return VideoUrl(path, MetaData, QualityList);
+	HostPrintUTF8("Playitem path: " + path);
+	if (path.find("id=") >= 0) {
+        return Video(path, MetaData, QualityList);
 	}
 
 	return path;
